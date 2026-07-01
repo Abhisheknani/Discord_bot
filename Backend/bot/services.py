@@ -6,20 +6,29 @@ from rest_framework.response import Response
 from .models import CommandLog, BotConfiguration
 
 
+def get_or_create_config():
+    config = BotConfiguration.objects.order_by("id").first()
+    if config is None:
+        config = BotConfiguration.objects.create(
+            notification_channel_id=settings.REPORT_CHANNEL_ID or "",
+            mirror_enabled=True,
+            bot_enabled=True,
+        )
+    return config
+
+
 def send_message_to_channel(message):
 
-    config = BotConfiguration.objects.first()
-
-    if not config:
-        return
+    config = get_or_create_config()
 
     if not config.mirror_enabled:
-        return
+        return None
 
-    if not config.notification_channel_id:
-        return
+    channel_id = config.notification_channel_id or settings.REPORT_CHANNEL_ID or ""
+    if not channel_id:
+        return None
 
-    url = f"https://discord.com/api/v10/channels/{config.notification_channel_id}/messages"
+    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
 
     headers = {
         "Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}",
@@ -53,9 +62,9 @@ def handle_interaction(data):
     if interaction_type == 1:
         return handle_ping()
 
-    config = BotConfiguration.objects.first()
+    config = get_or_create_config()
 
-    if config and not config.bot_enabled:
+    if not config.bot_enabled:
         return Response(
             {
                 "type": 4,
@@ -154,14 +163,19 @@ def handle_modal_submit(data):
             }
         )
 
-    user = data["member"]["user"]
+    user = (data.get("member") or {}).get("user") or {}
 
     username = (
         user.get("global_name")
         or user.get("username")
+        or "Unknown User"
     )
+    user_id = str(user.get("id", ""))
 
-    report_text = data["data"]["components"][0]["components"][0]["value"]
+    components = (data.get("data") or {}).get("components", [])
+    report_text = ""
+    if components and components[0].get("components"):
+        report_text = components[0]["components"][0].get("value", "")
 
     guild_id = data.get("guild_id", "")
 
@@ -170,6 +184,7 @@ def handle_modal_submit(data):
     report = CommandLog.objects.create(
         interaction_id=interaction_id,
         command_name="report",
+        user_id=user_id,
         username=username,
         guild_id=guild_id,
         channel_id=channel_id,
@@ -256,10 +271,10 @@ def handle_button_interaction(data):
 
 def handle_status():
 
-    config = BotConfiguration.objects.first()
+    config = get_or_create_config()
 
-    bot_enabled = config.bot_enabled if config else False
-    mirror_enabled = config.mirror_enabled if config else False
+    bot_enabled = config.bot_enabled
+    mirror_enabled = config.mirror_enabled
 
     return Response(
         {

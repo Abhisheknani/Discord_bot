@@ -63,6 +63,10 @@ def handle_interaction(data):
 
     elif interaction_type == 2:
         return handle_application_command(data)
+    elif interaction_type == 3:
+        return handle_button_interaction(data)
+    elif interaction_type == 5:
+        return handle_modal_submit(data)
 
     return Response(
         {
@@ -95,13 +99,70 @@ def handle_application_command(data):
         return handle_status()
 
     elif command_name == "report":
-        return handle_report(data)
+        return open_report_modal()
 
     return Response(
         {
             "type": 4,
             "data": {
                 "content": "Unknown command."
+            }
+        }
+    )
+
+
+def open_report_modal():
+
+    return Response(
+        {
+            "type": 9,
+            "data": {
+                "custom_id": "report_modal",
+                "title": "Create Report",
+                "components": [
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 4,
+                                "custom_id": "report_text",
+                                "label": "Report",
+                                "style": 2,
+                                "required": True
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    )
+
+def handle_modal_submit(data):
+
+    values = data["data"]["components"]
+
+    report_text = values[0]["components"][0]["value"]
+
+    username = data["member"]["user"]["username"]
+
+    CommandLog.objects.create(
+        interaction_id=data["id"],
+        command_name="report",
+        username=username,
+        guild_id=data.get("guild_id", ""),
+        channel_id=data.get("channel_id", ""),
+        report_text=report_text
+    )
+
+    send_message_to_channel(
+        f"📢 New Report\n\nUser: {username}\n\n{report_text}"
+    )
+
+    return Response(
+        {
+            "type": 4,
+            "data": {
+                "content": "✅ Report submitted successfully."
             }
         }
     )
@@ -125,51 +186,111 @@ def handle_status():
     )
 
 
-def handle_report(data):
+def handle_button_interaction(data):
 
-    interaction_id = data.get("id")
+    custom_id = data["data"]["custom_id"]
 
-    user = data.get("user", {})
+    action, interaction_id = custom_id.split(":")
 
-    user_id = user.get("id", "")
-    username = user.get("global_name") or user.get("username", "")
-
-    guild_id = data.get("guild_id", "")
-    channel_id = data.get("channel_id", "")
-
-    options = data["data"].get("options", [])
-
-    report_text = ""
-
-    for option in options:
-        if option["name"] == "text":
-            report_text = option["value"]
-
-    if not CommandLog.objects.filter(interaction_id=interaction_id).exists():
-
-        CommandLog.objects.create(
-            interaction_id=interaction_id,
-            command_name="report",
-            user_id=user_id,
-            username=username,
-            guild_id=guild_id,
-            channel_id=channel_id,
-            report_text=report_text
-        )
-
-        message = (
-            "📢 **New Report Received**\n\n"
-            f"👤 User : {username}\n\n"
-            f"📝 Report:\n{report_text}"
-        )
-
-        send_message_to_channel(message)
-
-    return Response(
-        {
-            "type": 4,
-            "data": {
-                "content": f"✅ Report received.\n\nMessage:\n{report_text}"
-            }
-        }
+    report = CommandLog.objects.get(
+        interaction_id=interaction_id
     )
+
+    if action == "resolve_report":
+
+        report.status = "RESOLVED"
+        report.save()
+
+        return Response(
+            {
+                "type": 7,
+                "data": {
+                    "content": "✅ Report Resolved",
+                    "components": []
+                }
+            }
+        )
+
+    elif action == "ignore_report":
+
+        report.status = "IGNORED"
+        report.save()
+
+        return Response(
+            {
+                "type": 7,
+                "data": {
+                    "content": "❌ Report Ignored",
+                    "components": []
+                }
+            }
+        )
+
+
+# def handle_report(data):
+
+#     interaction_id = data.get("id")
+
+#     user = data.get("user", {})
+
+#     user_id = user.get("id", "")
+#     username = user.get("global_name") or user.get("username", "")
+
+#     guild_id = data.get("guild_id", "")
+#     channel_id = data.get("channel_id", "")
+
+#     options = data["data"].get("options", [])
+
+#     report_text = ""
+
+#     for option in options:
+#         if option["name"] == "text":
+#             report_text = option["value"]
+
+#     if not CommandLog.objects.filter(interaction_id=interaction_id).exists():
+
+#         CommandLog.objects.create(
+#             interaction_id=interaction_id,
+#             command_name="report",
+#             user_id=user_id,
+#             username=username,
+#             guild_id=guild_id,
+#             channel_id=channel_id,
+#             report_text=report_text
+#         )
+
+#         message = (
+#             "📢 **New Report Received**\n\n"
+#             f"👤 User : {username}\n\n"
+#             f"📝 Report:\n{report_text}"
+#         )
+
+#         send_message_to_channel(message)
+
+#     return Response(
+#     {
+#         "type": 4,
+#         "data": {
+#             "content": f"📢 Report Received\n\n{report_text}",
+#             "components": [
+#                 {
+#                     "type": 1,
+#                     "components": [
+#                         {
+#                             "type": 2,
+#                             "style": 3,
+#                             "label": "Resolve",
+#                             "custom_id": f"resolve_report:{interaction_id}"
+#                         },
+#                         {
+#                             "type": 2,
+#                             "style": 4,
+#                             "label": "Ignore",
+#                             "custom_id": f"ignore_report:{interaction_id}"
+#                         }
+#                     ]
+#                 }
+#             ]
+#         }
+#     }
+#     )

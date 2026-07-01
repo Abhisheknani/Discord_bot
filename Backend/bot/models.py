@@ -11,6 +11,12 @@ class CommandLog(models.Model):
     channel_id = models.CharField(max_length=30,blank=True)
     report_text = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    STATUS_CHOICES = (
+    ("PENDING", "Pending"),
+    ("RESOLVED", "Resolved"),
+    ("IGNORED", "Ignored"),
+    )
+    status = models.CharField(max_length=20,choices=STATUS_CHOICES,default="PENDING")
 
     def __str__(self):
         return f"{self.command_name} - {self.user_id}"

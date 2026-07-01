@@ -4,17 +4,14 @@ from rest_framework import status
 from .utils import verify_discord_signature
 from django.http import HttpResponse
 
-def test(request):
-    return HttpResponse("HELLO FROM MY DJANGO")
-
-# Create your views here.
-
-
 class Interactions(APIView):
     authentication_classes=[]
     permission_classes=[]
 
     def post(self,request):
+
+        print("Raw body:", request.body)
+        print("Parsed data:", request.data)
 
         if not verify_discord_signature(request):
             return Response(

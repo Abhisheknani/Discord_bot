@@ -1,4 +1,29 @@
+import requests
+from django.conf import settings
 from rest_framework.response import Response
+from .models import CommandLog
+
+
+def send_message_to_channel(message):
+
+    url = f"https://discord.com/api/v10/channels/{settings.REPORT_CHANNEL_ID}/messages"
+
+    headers = {
+        "Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "content": message
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=payload
+    )
+
+    return response
 
 
 def handle_interaction(data):
@@ -71,6 +96,14 @@ def handle_status():
 
 def handle_report(data):
 
+    interaction_id = data.get("id")
+
+    user = data.get("user", {})
+    user_id = user.get("id", "")
+
+    guild_id = data.get("guild_id", "")
+    channel_id = data.get("channel_id", "")
+
     options = data["data"].get("options", [])
 
     report_text = ""
@@ -79,11 +112,32 @@ def handle_report(data):
         if option["name"] == "text":
             report_text = option["value"]
 
+    if not CommandLog.objects.filter(interaction_id=interaction_id).exists():
+
+        CommandLog.objects.create(
+            interaction_id=interaction_id,
+            command_name="report",
+            user_id=user_id,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            report_text=report_text
+        )
+
+        message = (
+            "📢 **New Report Received**\n\n"
+            f"User ID: {user_id}\n"
+            f"Guild ID: {guild_id}\n"
+            f"Channel ID: {channel_id}\n\n"
+            f"Report:\n{report_text}"
+        )
+
+        send_message_to_channel(message)
+
     return Response(
         {
             "type": 4,
             "data": {
-                "content": f"Report Received:\n{report_text}"
+                "content": f"Report received.\n\nMessage: {report_text}"
             }
         }
     )

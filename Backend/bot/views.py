@@ -4,6 +4,9 @@ from rest_framework import status
 from .utils import verify_discord_signature
 from django.http import HttpResponse
 from .services import handle_interaction
+from .serializers import (CommandLogSerializer,BotConfigurationSerializer)
+from rest_framework import generics
+from .models import CommandLog, BotConfiguration
 
 
 class Interactions(APIView):
@@ -22,4 +25,23 @@ class Interactions(APIView):
             )
 
         return handle_interaction(request.data)
+
+class CommandLogListAPIView(generics.ListAPIView):
+
+    serializer_class = CommandLogSerializer
+
+    queryset = CommandLog.objects.all().order_by("-created_at")
+
+class CommandLogDetailAPIView(generics.RetrieveAPIView):
+
+    serializer_class = CommandLogSerializer
+
+    queryset = CommandLog.objects.all()
+
+class BotConfigurationAPIView(generics.RetrieveUpdateAPIView):
+
+    serializer_class = BotConfigurationSerializer
+
+    def get_object(self):
+        return BotConfiguration.objects.first()
             

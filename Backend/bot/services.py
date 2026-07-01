@@ -1,12 +1,19 @@
 import requests
 from django.conf import settings
 from rest_framework.response import Response
-from .models import CommandLog
+from .models import CommandLog, BotConfiguration
 
 
 def send_message_to_channel(message):
 
-    url = f"https://discord.com/api/v10/channels/{settings.REPORT_CHANNEL_ID}/messages"
+    config = BotConfiguration.objects.first()
+
+    if not config or not config.mirror_enabled:
+        return
+
+    channel_id = config.notification_channel_id
+
+    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
 
     headers = {
         "Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}",
@@ -20,8 +27,14 @@ def send_message_to_channel(message):
     response = requests.post(
         url,
         headers=headers,
-        json=payload
+        json=payload,
+        timeout=10
     )
+
+    if response.status_code not in (200, 201):
+        print("Failed to send notification")
+        print(response.status_code)
+        print(response.text)
 
     return response
 
@@ -30,6 +43,18 @@ def handle_interaction(data):
     """
     Main entry point for all Discord interactions.
     """
+
+    config = BotConfiguration.objects.first()
+
+    if config and not config.bot_enabled:
+        return Response(
+            {
+                "type": 4,
+                "data": {
+                    "content": "Bot is currently disabled."
+                }
+            }
+        )
 
     interaction_type = data.get("type")
 
@@ -84,11 +109,17 @@ def handle_application_command(data):
 
 def handle_status():
 
+    config = BotConfiguration.objects.first()
+
     return Response(
         {
             "type": 4,
             "data": {
-                "content": "Bot is running successfully."
+                "content": (
+                    f"🤖 Bot Status\n\n"
+                    f"Bot Enabled : {config.bot_enabled if config else False}\n"
+                    f"Mirror Enabled : {config.mirror_enabled if config else False}"
+                )
             }
         }
     )
@@ -99,7 +130,9 @@ def handle_report(data):
     interaction_id = data.get("id")
 
     user = data.get("user", {})
+
     user_id = user.get("id", "")
+    username = user.get("global_name") or user.get("username", "")
 
     guild_id = data.get("guild_id", "")
     channel_id = data.get("channel_id", "")
@@ -118,6 +151,7 @@ def handle_report(data):
             interaction_id=interaction_id,
             command_name="report",
             user_id=user_id,
+            username=username,
             guild_id=guild_id,
             channel_id=channel_id,
             report_text=report_text
@@ -125,10 +159,8 @@ def handle_report(data):
 
         message = (
             "📢 **New Report Received**\n\n"
-            f"User ID: {user_id}\n"
-            f"Guild ID: {guild_id}\n"
-            f"Channel ID: {channel_id}\n\n"
-            f"Report:\n{report_text}"
+            f"👤 User : {username}\n\n"
+            f"📝 Report:\n{report_text}"
         )
 
         send_message_to_channel(message)
@@ -137,7 +169,7 @@ def handle_report(data):
         {
             "type": 4,
             "data": {
-                "content": f"Report received.\n\nMessage: {report_text}"
+                "content": f"✅ Report received.\n\nMessage:\n{report_text}"
             }
         }
     )

@@ -1,20 +1,14 @@
-import React from 'react'
-import { useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
-import Cookies from "js-cookie";
+import { Navigate, Outlet } from 'react-router-dom'
+import Cookies from 'js-cookie'
 
 const PrivateRoute = () => {
-    const token = Cookies.get('token');
-    const navigate = useNavigate();
+  const token = Cookies.get('token')
 
-    useEffect(() => {
-        if (!token) {
-            // If no token, redirect to login page
-            navigate('/login');
-        }
-    }, [token]);
+  if (!token) {
+    return <Navigate to="/login" replace />
+  }
 
-    return token ? <Outlet /> : navigate('/login'); // Render child routes if token exists, otherwise redirect to login
+  return <Outlet />
 }
 
 export default PrivateRoute

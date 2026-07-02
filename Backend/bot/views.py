@@ -7,6 +7,8 @@ from .services import handle_interaction
 from .serializers import (CommandLogSerializer,BotConfigurationSerializer)
 from rest_framework import generics
 from .models import CommandLog, BotConfiguration
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework.permissions import IsAuthenticated
 
 
 class Interactions(APIView):
@@ -27,18 +29,21 @@ class Interactions(APIView):
         return handle_interaction(request.data)
 
 class CommandLogListAPIView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
 
     serializer_class = CommandLogSerializer
 
     queryset = CommandLog.objects.all().order_by("-created_at")
 
 class CommandLogDetailAPIView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
 
     serializer_class = CommandLogSerializer
 
     queryset = CommandLog.objects.all()
 
 class BotConfigurationAPIView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated]
 
     serializer_class = BotConfigurationSerializer
 
